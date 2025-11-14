@@ -1,770 +1,787 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sunshine UPVC Windows - Management System</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sunshine UPVC Windows - Management System</title>
+
+  <!-- React CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel Compiler (for JSX in-browser) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Lucide icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* Small tweak to make print look nice */
+    @media print {
+      body { -webkit-print-color-adjust: exact; }
+      .no-print { display: none !important; }
+    }
+  </style>
 </head>
-<body>
-    <div id="root"></div>
+<body class="antialiased">
 
-    <script type="text/babel" data-presets="react">
-        const { useState, useEffect } = React;
-        const { Plus, Trash2, FileText, Download, Search } = lucide;
+  <div id="root"></div>
 
-        // Simple localStorage wrapper for storage API
-        window.storage = {
-            async get(key) {
-                try {
-                    const value = localStorage.getItem(key);
-                    return value ? { key, value, shared: false } : null;
-                } catch (error) {
-                    console.error('Storage get error:', error);
-                    return null;
-                }
-            },
-            async set(key, value) {
-                try {
-                    localStorage.setItem(key, value);
-                    return { key, value, shared: false };
-                } catch (error) {
-                    console.error('Storage set error:', error);
-                    return null;
-                }
-            },
-            async delete(key) {
-                try {
-                    localStorage.removeItem(key);
-                    return { key, deleted: true, shared: false };
-                } catch (error) {
-                    console.error('Storage delete error:', error);
-                    return null;
-                }
-            },
-            async list(prefix = '') {
-                try {
-                    const keys = Object.keys(localStorage).filter(k => k.startsWith(prefix));
-                    return { keys, prefix, shared: false };
-                } catch (error) {
-                    console.error('Storage list error:', error);
-                    return { keys: [], prefix, shared: false };
-                }
-            }
+  <!-- IMPORTANT: data-presets="react" so GitHub Pages (Babel) compiles JSX -->
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect } = React;
+    const { Plus, Trash2, FileText, Download, Search } = lucide;
+
+    // localStorage wrapper compatible with GitHub Pages
+    window.storage = {
+      get(key) {
+        try {
+          const v = localStorage.getItem(key);
+          return v ? { key, value: v } : null;
+        } catch (e) {
+          console.error('storage.get error', e);
+          return null;
+        }
+      },
+      set(key, value) {
+        try {
+          localStorage.setItem(key, value);
+          return { key, value };
+        } catch (e) {
+          console.error('storage.set error', e);
+          return null;
+        }
+      },
+      delete(key) {
+        try {
+          localStorage.removeItem(key);
+          return { key, deleted: true };
+        } catch (e) {
+          console.error('storage.delete error', e);
+          return null;
+        }
+      },
+      list(prefix = '') {
+        try {
+          const keys = Object.keys(localStorage).filter(k => k.startsWith(prefix));
+          return { keys, prefix };
+        } catch (e) {
+          console.error('storage.list error', e);
+          return { keys: [], prefix };
+        }
+      }
+    };
+
+    const SunshineUPVCSystem = () => {
+      const [quotations, setQuotations] = useState([]);
+      const [currentQuotation, setCurrentQuotation] = useState(null);
+      const [view, setView] = useState('list');
+      const [searchTerm, setSearchTerm] = useState('');
+
+      const profiles = ['Jemex', 'Fentech', 'VEKA', 'PSP'];
+      const itemCategories = ['Window', 'Door'];
+      const windowTypes = ['Sliding 2-Track', 'Sliding 3-Track', 'Casement', 'Fixed', 'Tilt & Turn', 'Bay Window'];
+      const doorTypes = ['Casement Door', 'Sliding Door', 'French Door', 'Bi-Fold Door'];
+      const glassTypes = ['Single Glazed', 'Double Glazed', 'Tinted', 'Laminated', 'Low-E', 'Toughened Glass'];
+      const glassThickness = ['5mm', '8mm', '10mm', '12mm'];
+      const glassAppearance = ['Clear', 'Coloured'];
+      const profileFinish = ['White', 'Laminated', 'Coloured'];
+
+      const [formData, setFormData] = useState({
+        clientName: '',
+        clientPhone: '',
+        clientAddress: '',
+        projectName: '',
+        items: []
+      });
+
+      const [currentItem, setCurrentItem] = useState({
+        itemCategory: 'Window',
+        profile: 'Jemex',
+        windowType: 'Sliding 2-Track',
+        doorType: 'Casement Door',
+        glassType: 'Single Glazed',
+        glassThickness: '5mm',
+        glassAppearance: 'Clear',
+        profileFinish: 'White',
+        windowColor: '',
+        glassColor: '',
+        width: '',
+        height: '',
+        quantity: 1,
+        ratePerSqFt: '',
+        notes: ''
+      });
+
+      useEffect(() => {
+        loadQuotations();
+      }, []);
+
+      const loadQuotations = () => {
+        try {
+          const result = window.storage.list('quotation:');
+          if (result && result.keys) {
+            const loadedQuotations = result.keys.map(key => {
+              const d = window.storage.get(key);
+              return d ? JSON.parse(d.value) : null;
+            }).filter(q => q !== null);
+            // sort by date desc
+            loadedQuotations.sort((a,b) => new Date(b.date) - new Date(a.date));
+            setQuotations(loadedQuotations);
+          } else {
+            setQuotations([]);
+          }
+        } catch (e) {
+          console.error('loadQuotations error', e);
+          setQuotations([]);
+        }
+      };
+
+      const calculateItemCost = (item) => {
+        const width = parseFloat(item.width) || 0;
+        const height = parseFloat(item.height) || 0;
+        const rate = parseFloat(item.ratePerSqFt) || 0;
+        const area = (width * height) / 144;
+        const totalPrice = rate * area * item.quantity;
+        return {
+          area: area.toFixed(2),
+          ratePerSqFt: rate.toFixed(2),
+          totalPrice: totalPrice.toFixed(2)
+        };
+      };
+
+      const addItem = () => {
+        if (!currentItem.width || !currentItem.height || !currentItem.ratePerSqFt) {
+          alert('Please enter width, height, and rate per sq ft');
+          return;
+        }
+        const itemWithCost = {
+          ...currentItem,
+          ...calculateItemCost(currentItem),
+          id: Date.now()
+        };
+        setFormData({
+          ...formData,
+          items: [...formData.items, itemWithCost]
+        });
+        setCurrentItem({
+          itemCategory: 'Window',
+          profile: 'Jemex',
+          windowType: 'Sliding 2-Track',
+          doorType: 'Casement Door',
+          glassType: 'Single Glazed',
+          glassThickness: '5mm',
+          glassAppearance: 'Clear',
+          profileFinish: 'White',
+          windowColor: '',
+          glassColor: '',
+          width: '',
+          height: '',
+          quantity: 1,
+          ratePerSqFt: '',
+          notes: ''
+        });
+      };
+
+      const removeItem = (id) => {
+        setFormData({
+          ...formData,
+          items: formData.items.filter(item => item.id !== id)
+        });
+      };
+
+      const calculateTotal = () => {
+        return formData.items.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
+      };
+
+      const saveQuotation = () => {
+        if (!formData.clientName || formData.items.length === 0) {
+          alert('Please enter client name and add at least one item');
+          return;
+        }
+
+        const quotation = {
+          ...formData,
+          quotationNumber: `SUN${Date.now()}`,
+          date: new Date().toISOString(),
+          total: calculateTotal().toFixed(2),
+          gst: (calculateTotal() * 0.18).toFixed(2),
+          grandTotal: (calculateTotal() * 1.18).toFixed(2)
         };
 
-        const SunshineUPVCSystem = () => {
-            const [quotations, setQuotations] = useState([]);
-            const [currentQuotation, setCurrentQuotation] = useState(null);
-            const [view, setView] = useState('list');
-            const [searchTerm, setSearchTerm] = useState('');
+        window.storage.set(`quotation:${quotation.quotationNumber}`, JSON.stringify(quotation));
+        loadQuotations();
+        setView('list');
+        resetForm();
+        alert('Quotation saved successfully!');
+      };
 
-            const profiles = ['Jemex', 'Fentech', 'VEKA', 'PSP'];
-            const itemCategories = ['Window', 'Door'];
-            const windowTypes = ['Sliding 2-Track', 'Sliding 3-Track', 'Casement', 'Fixed', 'Tilt & Turn', 'Bay Window'];
-            const doorTypes = ['Casement Door', 'Sliding Door', 'French Door', 'Bi-Fold Door'];
-            const glassTypes = ['Single Glazed', 'Double Glazed', 'Tinted', 'Laminated', 'Low-E', 'Toughened Glass'];
-            const glassThickness = ['5mm', '8mm', '10mm', '12mm'];
-            const glassAppearance = ['Clear', 'Coloured'];
-            const profileFinish = ['White', 'Laminated', 'Coloured'];
+      const resetForm = () => {
+        setFormData({
+          clientName: '',
+          clientPhone: '',
+          clientAddress: '',
+          projectName: '',
+          items: []
+        });
+        setCurrentItem({
+          itemCategory: 'Window',
+          profile: 'Jemex',
+          windowType: 'Sliding 2-Track',
+          doorType: 'Casement Door',
+          glassType: 'Single Glazed',
+          glassThickness: '5mm',
+          glassAppearance: 'Clear',
+          profileFinish: 'White',
+          windowColor: '',
+          glassColor: '',
+          width: '',
+          height: '',
+          quantity: 1,
+          ratePerSqFt: '',
+          notes: ''
+        });
+      };
 
-            const [formData, setFormData] = useState({
-                clientName: '',
-                clientPhone: '',
-                clientAddress: '',
-                projectName: '',
-                items: []
-            });
+      const filteredQuotations = quotations.filter(q =>
+        q.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        q.quotationNumber.toLowerCase().includes(searchTerm.toLowerCase())
+      );
 
-            const [currentItem, setCurrentItem] = useState({
-                itemCategory: 'Window',
-                profile: 'Jemex',
-                windowType: 'Sliding 2-Track',
-                doorType: 'Casement Door',
-                glassType: 'Single Glazed',
-                glassThickness: '5mm',
-                glassAppearance: 'Clear',
-                profileFinish: 'White',
-                windowColor: '',
-                glassColor: '',
-                width: '',
-                height: '',
-                quantity: 1,
-                ratePerSqFt: '',
-                notes: ''
-            });
+      // LIST VIEW
+      if (view === 'list') {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+            <div className="max-w-6xl mx-auto">
+              <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-center mb-6">
+                  <div>
+                    <h1 className="text-3xl font-bold text-indigo-900">Sunshine UPVC Windows</h1>
+                    <p className="text-gray-600">Quotation Management System</p>
+                  </div>
+                  <button
+                    onClick={() => setView('create')}
+                    className="mt-4 md:mt-0 bg-indigo-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition"
+                  >
+                    <Plus size={20} />
+                    New Quotation
+                  </button>
+                </div>
 
-            useEffect(() => {
-                loadQuotations();
-            }, []);
+                <div className="relative mb-6">
+                  <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Search by client name or quotation number..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
 
-            const loadQuotations = async () => {
-                try {
-                    const result = await window.storage.list('quotation:');
-                    if (result && result.keys) {
-                        const loadedQuotations = await Promise.all(
-                            result.keys.map(async (key) => {
-                                const data = await window.storage.get(key);
-                                return data ? JSON.parse(data.value) : null;
-                            })
-                        );
-                        setQuotations(loadedQuotations.filter(q => q !== null));
-                    }
-                } catch (error) {
-                    console.log('No existing quotations found');
-                }
-            };
-
-            const calculateItemCost = (item) => {
-                const width = parseFloat(item.width) || 0;
-                const height = parseFloat(item.height) || 0;
-                const rate = parseFloat(item.ratePerSqFt) || 0;
-                const area = (width * height) / 144;
-                const totalPrice = rate * area * item.quantity;
-
-                return {
-                    area: area.toFixed(2),
-                    ratePerSqFt: rate.toFixed(2),
-                    totalPrice: totalPrice.toFixed(2)
-                };
-            };
-
-            const addItem = () => {
-                if (!currentItem.width || !currentItem.height || !currentItem.ratePerSqFt) {
-                    alert('Please enter width, height, and rate per sq ft');
-                    return;
-                }
-
-                const itemWithCost = {
-                    ...currentItem,
-                    ...calculateItemCost(currentItem),
-                    id: Date.now()
-                };
-
-                setFormData({
-                    ...formData,
-                    items: [...formData.items, itemWithCost]
-                });
-
-                setCurrentItem({
-                    itemCategory: 'Window',
-                    profile: 'Jemex',
-                    windowType: 'Sliding 2-Track',
-                    doorType: 'Casement Door',
-                    glassType: 'Single Glazed',
-                    glassThickness: '5mm',
-                    glassAppearance: 'Clear',
-                    profileFinish: 'White',
-                    windowColor: '',
-                    glassColor: '',
-                    width: '',
-                    height: '',
-                    quantity: 1,
-                    ratePerSqFt: '',
-                    notes: ''
-                });
-            };
-
-            const removeItem = (id) => {
-                setFormData({
-                    ...formData,
-                    items: formData.items.filter(item => item.id !== id)
-                });
-            };
-
-            const calculateTotal = () => {
-                return formData.items.reduce((sum, item) => sum + parseFloat(item.totalPrice), 0);
-            };
-
-            const saveQuotation = async () => {
-                if (!formData.clientName || formData.items.length === 0) {
-                    alert('Please enter client name and add at least one item');
-                    return;
-                }
-
-                const quotation = {
-                    ...formData,
-                    quotationNumber: `SUN${Date.now()}`,
-                    date: new Date().toISOString(),
-                    total: calculateTotal().toFixed(2),
-                    gst: (calculateTotal() * 0.18).toFixed(2),
-                    grandTotal: (calculateTotal() * 1.18).toFixed(2)
-                };
-
-                try {
-                    await window.storage.set(`quotation:${quotation.quotationNumber}`, JSON.stringify(quotation));
-                    await loadQuotations();
-                    setView('list');
-                    resetForm();
-                    alert('Quotation saved successfully!');
-                } catch (error) {
-                    console.error('Error saving quotation:', error);
-                    alert('Failed to save quotation');
-                }
-            };
-
-            const resetForm = () => {
-                setFormData({
-                    clientName: '',
-                    clientPhone: '',
-                    clientAddress: '',
-                    projectName: '',
-                    items: []
-                });
-                setCurrentItem({
-                    itemCategory: 'Window',
-                    profile: 'Jemex',
-                    windowType: 'Sliding 2-Track',
-                    doorType: 'Casement Door',
-                    glassType: 'Single Glazed',
-                    glassThickness: '5mm',
-                    glassAppearance: 'Clear',
-                    profileFinish: 'White',
-                    windowColor: '',
-                    glassColor: '',
-                    width: '',
-                    height: '',
-                    quantity: 1,
-                    ratePerSqFt: '',
-                    notes: ''
-                });
-            };
-
-            const filteredQuotations = quotations.filter(q =>
-                q.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                q.quotationNumber.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-
-            if (view === 'list') {
-                return (
-                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-                        <div className="max-w-6xl mx-auto">
-                            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-                                <div className="flex flex-col md:flex-row justify-between items-center mb-6">
-                                    <div>
-                                        <h1 className="text-3xl font-bold text-indigo-900">Sunshine UPVC Windows</h1>
-                                        <p className="text-gray-600">Quotation Management System</p>
-                                    </div>
-                                    <button
-                                        onClick={() => setView('create')}
-                                        className="mt-4 md:mt-0 bg-indigo-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition"
-                                    >
-                                        <Plus size={20} />
-                                        New Quotation
-                                    </button>
-                                </div>
-
-                                <div className="relative mb-6">
-                                    <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-                                    <input
-                                        type="text"
-                                        placeholder="Search by client name or quotation number..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                    />
-                                </div>
-
-                                <div className="space-y-4">
-                                    {filteredQuotations.length === 0 ? (
-                                        <div className="text-center py-12 text-gray-500">
-                                            <FileText size={48} className="mx-auto mb-4 text-gray-400" />
-                                            <p>No quotations found. Create your first quotation!</p>
-                                        </div>
-                                    ) : (
-                                        filteredQuotations.map((quotation, idx) => (
-                                            <div key={idx} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
-                                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-                                                    <div className="flex-1">
-                                                        <h3 className="text-lg font-semibold text-gray-800">{quotation.clientName}</h3>
-                                                        <p className="text-sm text-gray-600">Quotation #: {quotation.quotationNumber}</p>
-                                                        <p className="text-sm text-gray-600">Date: {new Date(quotation.date).toLocaleDateString()}</p>
-                                                        <p className="text-sm text-gray-600">Items: {quotation.items.length}</p>
-                                                    </div>
-                                                    <div className="mt-4 md:mt-0 text-right">
-                                                        <p className="text-2xl font-bold text-indigo-600">₹{quotation.grandTotal}</p>
-                                                        <p className="text-sm text-gray-600">Inc. GST</p>
-                                                        <button
-                                                            onClick={() => {
-                                                                setCurrentQuotation(quotation);
-                                                                setView('view');
-                                                            }}
-                                                            className="mt-2 bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-200 transition"
-                                                        >
-                                                            View Details
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                <div className="space-y-4">
+                  {filteredQuotations.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <FileText size={48} className="mx-auto mb-4 text-gray-400" />
+                      <p>No quotations found. Create your first quotation!</p>
                     </div>
-                );
-            }
-
-            if (view === 'create') {
-                return (
-                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-                        <div className="max-w-6xl mx-auto">
-                            <div className="bg-white rounded-lg shadow-lg p-6">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold text-indigo-900">Create New Quotation</h2>
-                                    <button
-                                        onClick={() => setView('list')}
-                                        className="text-gray-600 hover:text-gray-800"
-                                    >
-                                        ← Back to List
-                                    </button>
-                                </div>
-
-                                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                                    <h3 className="font-semibold text-lg mb-4 text-gray-800">Client Details</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <input
-                                            type="text"
-                                            placeholder="Client Name *"
-                                            value={formData.clientName}
-                                            onChange={(e) => setFormData({...formData, clientName: e.target.value})}
-                                            className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Phone Number"
-                                            value={formData.clientPhone}
-                                            onChange={(e) => setFormData({...formData, clientPhone: e.target.value})}
-                                            className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Address"
-                                            value={formData.clientAddress}
-                                            onChange={(e) => setFormData({...formData, clientAddress: e.target.value})}
-                                            className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Project Name"
-                                            value={formData.projectName}
-                                            onChange={(e) => setFormData({...formData, projectName: e.target.value})}
-                                            className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="mb-6 p-4 bg-indigo-50 rounded-lg">
-                                    <h3 className="font-semibold text-lg mb-4 text-indigo-900">Add Item</h3>
-
-                                    <div className="mb-4">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Item Category *</label>
-                                        <select
-                                            value={currentItem.itemCategory}
-                                            onChange={(e) => setCurrentItem({...currentItem, itemCategory: e.target.value})}
-                                            className="w-full md:w-64 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                        >
-                                            {itemCategories.map(category => (
-                                                <option key={category} value={category}>{category}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Profile *</label>
-                                            <select
-                                                value={currentItem.profile}
-                                                onChange={(e) => setCurrentItem({...currentItem, profile: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            >
-                                                {profiles.map(profile => (
-                                                    <option key={profile} value={profile}>{profile}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                {currentItem.itemCategory === 'Window' ? 'Window Type *' : 'Door Type *'}
-                                            </label>
-                                            <select
-                                                value={currentItem.itemCategory === 'Window' ? currentItem.windowType : currentItem.doorType}
-                                                onChange={(e) => setCurrentItem({
-                                                    ...currentItem,
-                                                    [currentItem.itemCategory === 'Window' ? 'windowType' : 'doorType']: e.target.value
-                                                })}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            >
-                                                {(currentItem.itemCategory === 'Window' ? windowTypes : doorTypes).map(type => (
-                                                    <option key={type} value={type}>{type}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Glass Type *</label>
-                                            <select
-                                                value={currentItem.glassType}
-                                                onChange={(e) => setCurrentItem({...currentItem, glassType: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            >
-                                                {glassTypes.map(glass => (
-                                                    <option key={glass} value={glass}>{glass}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Glass Thickness *</label>
-                                            <select
-                                                value={currentItem.glassThickness}
-                                                onChange={(e) => setCurrentItem({...currentItem, glassThickness: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            >
-                                                {glassThickness.map(thickness => (
-                                                    <option key={thickness} value={thickness}>{thickness}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Glass Appearance *</label>
-                                            <select
-                                                value={currentItem.glassAppearance}
-                                                onChange={(e) => setCurrentItem({...currentItem, glassAppearance: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            >
-                                                {glassAppearance.map(appearance => (
-                                                    <option key={appearance} value={appearance}>{appearance}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Profile Finish *</label>
-                                            <select
-                                                value={currentItem.profileFinish}
-                                                onChange={(e) => setCurrentItem({...currentItem, profileFinish: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            >
-                                                {profileFinish.map(finish => (
-                                                    <option key={finish} value={finish}>{finish}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Window/Door Color</label>
-                                            <input
-                                                type="text"
-                                                placeholder="e.g., White, Brown, Grey"
-                                                value={currentItem.windowColor}
-                                                onChange={(e) => setCurrentItem({...currentItem, windowColor: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Glass Color</label>
-                                            <input
-                                                type="text"
-                                                placeholder="e.g., Clear, Blue, Green"
-                                                value={currentItem.glassColor}
-                                                onChange={(e) => setCurrentItem({...currentItem, glassColor: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Width (inches) *</label>
-                                            <input
-                                                type="number"
-                                                placeholder="Width"
-                                                value={currentItem.width}
-                                                onChange={(e) => setCurrentItem({...currentItem, width: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Height (inches) *</label>
-                                            <input
-                                                type="number"
-                                                placeholder="Height"
-                                                value={currentItem.height}
-                                                onChange={(e) => setCurrentItem({...currentItem, height: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Rate/Sq Ft (₹) *</label>
-                                            <input
-                                                type="number"
-                                                placeholder="Rate"
-                                                value={currentItem.ratePerSqFt}
-                                                onChange={(e) => setCurrentItem({...currentItem, ratePerSqFt: e.target.value})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                value={currentItem.quantity}
-                                                onChange={(e) => setCurrentItem({...currentItem, quantity: parseInt(e.target.value) || 1})}
-                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                            />
-                                        </div>
-
-                                        <div className="flex items-end">
-                                            <button
-                                                onClick={addItem}
-                                                className="w-full bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2"
-                                            >
-                                                <Plus size={20} />
-                                                Add Item
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
-                                        <input
-                                            type="text"
-                                            placeholder="Additional notes for this item"
-                                            value={currentItem.notes}
-                                            onChange={(e) => setCurrentItem({...currentItem, notes: e.target.value})}
-                                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                        />
-                                    </div>
-                                </div>
-
-                                {formData.items.length > 0 && (
-                                    <div className="mb-6">
-                                        <h3 className="font-semibold text-lg mb-4 text-gray-800">Quotation Items</h3>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full border-collapse">
-                                                <thead>
-                                                    <tr className="bg-gray-100">
-                                                        <th className="p-3 text-left text-sm font-semibold">Category</th>
-                                                        <th className="p-3 text-left text-sm font-semibold">Profile</th>
-                                                        <th className="p-3 text-left text-sm font-semibold">Type</th>
-                                                        <th className="p-3 text-left text-sm font-semibold">Glass</th>
-                                                        <th className="p-3 text-left text-sm font-semibold">Size</th>
-                                                        <th className="p-3 text-left text-sm font-semibold">Area</th>
-                                                        <th className="p-3 text-left text-sm font-semibold">Rate/Sq Ft</th>
-                                                        <th className="p-3 text-left text-sm font-semibold">Qty</th>
-                                                        <th className="p-3 text-right text-sm font-semibold">Total</th>
-                                                        <th className="p-3"></th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {formData.items.map((item) => (
-                                                        <tr key={item.id} className="border-b hover:bg-gray-50">
-                                                            <td className="p-3">{item.itemCategory}</td>
-                                                            <td className="p-3">{item.profile}</td>
-                                                            <td className="p-3 text-sm">
-                                                                {item.itemCategory === 'Window' ? item.windowType : item.doorType}
-                                                            </td>
-                                                            <td className="p-3 text-sm">
-                                                                <div>{item.glassType}</div>
-                                                                <div className="text-xs text-gray-500">
-                                                                    {item.glassThickness} | {item.glassAppearance}
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-3">{item.width}″ × {item.height}″</td>
-                                                            <td className="p-3">{item.area} sq ft</td>
-                                                            <td className="p-3">₹{item.ratePerSqFt}</td>
-                                                            <td className="p-3">{item.quantity}</td>
-                                                            <td className="p-3 text-right font-semibold">₹{item.totalPrice}</td>
-                                                            <td className="p-3">
-                                                                <button
-                                                                    onClick={() => removeItem(item.id)}
-                                                                    className="text-red-600 hover:text-red-800"
-                                                                >
-                                                                    <Trash2 size={18} />
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-
-                                        <div className="mt-4 bg-gray-50 p-4 rounded-lg">
-                                            <div className="flex justify-end space-y-2 flex-col items-end">
-                                                <div className="flex justify-between w-64">
-                                                    <span className="font-medium">Subtotal:</span>
-                                                    <span className="font-semibold">₹{calculateTotal().toFixed(2)}</span>
-                                                </div>
-                                                <div className="flex justify-between w-64">
-                                                    <span className="font-medium">GST (18%):</span>
-                                                    <span className="font-semibold">₹{(calculateTotal() * 0.18).toFixed(2)}</span>
-                                                </div>
-                                                <div className="flex justify-between w-64 text-lg border-t pt-2">
-                                                    <span className="font-bold">Grand Total:</span>
-                                                    <span className="font-bold text-indigo-600">₹{(calculateTotal() * 1.18).toFixed(2)}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="flex gap-4 justify-end">
-                                    <button
-                                        onClick={() => setView('list')}
-                                        className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={saveQuotation}
-                                        className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
-                                    >
-                                        <FileText size={20} />
-                                        Save Quotation
-                                    </button>
-                                </div>
-                            </div>
+                  ) : (
+                    filteredQuotations.map((quotation, idx) => (
+                      <div key={idx} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-gray-800">{quotation.clientName}</h3>
+                            <p className="text-sm text-gray-600">Quotation #: {quotation.quotationNumber}</p>
+                            <p className="text-sm text-gray-600">Date: {new Date(quotation.date).toLocaleDateString()}</p>
+                            <p className="text-sm text-gray-600">Items: {quotation.items.length}</p>
+                          </div>
+                          <div className="mt-4 md:mt-0 text-right">
+                            <p className="text-2xl font-bold text-indigo-600">₹{quotation.grandTotal}</p>
+                            <p className="text-sm text-gray-600">Inc. GST</p>
+                            <button
+                              onClick={() => {
+                                setCurrentQuotation(quotation);
+                                setView('view');
+                              }}
+                              className="mt-2 bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-200 transition"
+                            >
+                              View Details
+                            </button>
+                          </div>
                         </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // CREATE VIEW
+      if (view === 'create') {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+            <div className="max-w-6xl mx-auto">
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-indigo-900">Create New Quotation</h2>
+                  <button
+                    onClick={() => setView('list')}
+                    className="text-gray-600 hover:text-gray-800"
+                  >
+                    ← Back to List
+                  </button>
+                </div>
+
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <h3 className="font-semibold text-lg mb-4 text-gray-800">Client Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input
+                      type="text"
+                      placeholder="Client Name *"
+                      value={formData.clientName}
+                      onChange={(e) => setFormData({...formData, clientName: e.target.value})}
+                      className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Phone Number"
+                      value={formData.clientPhone}
+                      onChange={(e) => setFormData({...formData, clientPhone: e.target.value})}
+                      className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Address"
+                      value={formData.clientAddress}
+                      onChange={(e) => setFormData({...formData, clientAddress: e.target.value})}
+                      className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Project Name"
+                      value={formData.projectName}
+                      onChange={(e) => setFormData({...formData, projectName: e.target.value})}
+                      className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div className="mb-6 p-4 bg-indigo-50 rounded-lg">
+                  <h3 className="font-semibold text-lg mb-4 text-indigo-900">Add Item</h3>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Item Category *</label>
+                    <select
+                      value={currentItem.itemCategory}
+                      onChange={(e) => setCurrentItem({...currentItem, itemCategory: e.target.value})}
+                      className="w-full md:w-64 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      {itemCategories.map(category => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Profile *</label>
+                      <select
+                        value={currentItem.profile}
+                        onChange={(e) => setCurrentItem({...currentItem, profile: e.target.value})}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        {profiles.map(profile => (
+                          <option key={profile} value={profile}>{profile}</option>
+                        ))}
+                      </select>
                     </div>
-                );
-            }
 
-            if (view === 'view' && currentQuotation) {
-                return (
-                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-                        <div className="max-w-4xl mx-auto">
-                            <div className="bg-white rounded-lg shadow-lg p-8">
-                                <div className="flex justify-between items-start mb-6">
-                                    <div>
-                                        <h1 className="text-3xl font-bold text-indigo-900">Sunshine UPVC Windows</h1>
-                                        <p className="text-gray-600">Professional Window Solutions</p>
-                                    </div>
-                                    <button
-                                        onClick={() => setView('list')}
-                                        className="text-gray-600 hover:text-gray-800"
-                                    >
-                                        ← Back to List
-                                    </button>
-                                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {currentItem.itemCategory === 'Window' ? 'Window Type *' : 'Door Type *'}
+                      </label>
+                      <select
+                        value={currentItem.itemCategory === 'Window' ? currentItem.windowType : currentItem.doorType}
+                        onChange={(e) => setCurrentItem({
+                          ...currentItem,
+                          [currentItem.itemCategory === 'Window' ? 'windowType' : 'doorType']: e.target.value
+                        })}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        {(currentItem.itemCategory === 'Window' ? windowTypes : doorTypes).map(type => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                                <div className="border-t border-b border-gray-200 py-4 mb-6">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-sm text-gray-600">Quotation Number</p>
-                                            <p className="font-semibold text-lg">{currentQuotation.quotationNumber}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-gray-600">Date</p>
-                                            <p className="font-semibold">{new Date(currentQuotation.date).toLocaleDateString()}</p>
-                                        </div>
-                                    </div>
-                                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Glass Type *</label>
+                      <select
+                        value={currentItem.glassType}
+                        onChange={(e) => setCurrentItem({...currentItem, glassType: e.target.value})}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        {glassTypes.map(glass => (
+                          <option key={glass} value={glass}>{glass}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
 
-                                <div className="mb-6">
-                                    <h3 className="font-semibold text-lg mb-2">Client Details</h3>
-                                    <p className="text-gray-800"><strong>Name:</strong> {currentQuotation.clientName}</p>
-                                    {currentQuotation.clientPhone && <p className="text-gray-800"><strong>Phone:</strong> {currentQuotation.clientPhone}</p>}
-                                    {currentQuotation.clientAddress && <p className="text-gray-800"><strong>Address:</strong> {currentQuotation.clientAddress}</p>}
-                                    {currentQuotation.projectName && <p className="text-gray-800"><strong>Project:</strong> {currentQuotation.projectName}</p>}
-                                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Glass Thickness *</label>
+                      <select
+                        value={currentItem.glassThickness}
+                        onChange={(e) => setCurrentItem({...currentItem, glassThickness: e.target.value})}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        {glassThickness.map(thickness => (
+                          <option key={thickness} value={thickness}>{thickness}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                                <div className="mb-6">
-                                    <h3 className="font-semibold text-lg mb-4">Items</h3>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full border-collapse border border-gray-300">
-                                            <thead>
-                                                <tr className="bg-gray-100">
-                                                    <th className="border border-gray-300 p-2 text-left text-sm">Category</th>
-                                                    <th className="border border-gray-300 p-2 text-left text-sm">Profile</th>
-                                                    <th className="border border-gray-300 p-2 text-left text-sm">Type</th>
-                                                    <th className="border border-gray-300 p-2 text-left text-sm">Glass Details</th>
-                                                    <th className="border border-gray-300 p-2 text-left text-sm">Finish</th>
-                                                    <th className="border border-gray-300 p-2 text-left text-sm">Size</th>
-                                                    <th className="border border-gray-300 p-2 text-left text-sm">Area</th>
-                                                    <th className="border border-gray-300 p-2 text-left text-sm">Rate/Sq Ft</th>
-                                                    <th className="border border-gray-300 p-2 text-left text-sm">Qty</th>
-                                                    <th className="border border-gray-300 p-2 text-right text-sm">Amount</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {currentQuotation.items.map((item, idx) => (
-                                                    <tr key={idx}>
-                                                        <td className="border border-gray-300 p-2">{item.itemCategory}</td>
-                                                        <td className="border border-gray-300 p-2">{item.profile}</td>
-                                                        <td className="border border-gray-300 p-2">
-                                                            {item.itemCategory === 'Window' ? item.windowType : item.doorType}
-                                                        </td>
-                                                        <td className="border border-gray-300 p-2 text-sm">
-                                                            <div>{item.glassType}</div>
-                                                            <div className="text-xs text-gray-600">{item.glassThickness} | {item.glassAppearance}</div>
-                                                            {item.glassColor && <div className="text-xs text-gray-600">Color: {item.glassColor}</div>}
-                                                        </td>
-                                                        <td className="border border-gray-300 p-2 text-sm">
-                                                            <div>{item.profileFinish}</div>
-                                                            {item.windowColor && <div className="text-xs text-gray-600">{item.windowColor}</div>}
-                                                        </td>
-                                                        <td className="border border-gray-300 p-2">{item.width}″×{item.height}″</td>
-                                                        <td className="border border-gray-300 p-2">{item.area} sq ft</td>
-                                                        <td className="border border-gray-300 p-2">₹{item.ratePerSqFt}</td>
-                                                        <td className="border border-gray-300 p-2">{item.quantity}</td>
-                                                        <td className="border border-gray-300 p-2 text-right">₹{item.totalPrice}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Glass Appearance *</label>
+                      <select
+                        value={currentItem.glassAppearance}
+                        onChange={(e) => setCurrentItem({...currentItem, glassAppearance: e.target.value})}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        {glassAppearance.map(appearance => (
+                          <option key={appearance} value={appearance}>{appearance}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                                <div className="bg-gray-50 p-4 rounded-lg">
-                                    <div className="flex justify-end space-y-2 flex-col items-end">
-                                        <div className="flex justify-between w-64">
-                                            <span className="font-medium">Subtotal:</span>
-                                            <span className="font-semibold">₹{currentQuotation.total}</span>
-                                        </div>
-                                        <div className="flex justify-between w-64">
-                                            <span className="font-medium">GST (18%):</span>
-                                            <span className="font-semibold">₹{currentQuotation.gst}</span>
-                                        </div>
-                                        <div className="flex justify-between w-64 text-xl border-t-2 pt-2">
-                                            <span className="font-bold">Grand Total:</span>
-                                            <span className="font-bold text-indigo-600">₹{currentQuotation.grandTotal}</span>
-                                        </div>
-                                    </div>
-                                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Profile Finish *</label>
+                      <select
+                        value={currentItem.profileFinish}
+                        onChange={(e) => setCurrentItem({...currentItem, profileFinish: e.target.value})}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        {profileFinish.map(finish => (
+                          <option key={finish} value={finish}>{finish}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
 
-                                <div className="mt-6 flex gap-4 justify-end">
-                                    <button
-                                        onClick={() => window.print()}
-                                        className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
-                                    >
-                                        <Download size={20} />
-                                        Print / Save PDF
-                                    </button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Window/Door Color</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., White, Brown, Grey"
+                        value={currentItem.windowColor}
+                        onChange={(e) => setCurrentItem({...currentItem, windowColor: e.target.value})}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Glass Color</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Clear, Blue, Green"
+                        value={currentItem.glassColor}
+                        onChange={(e) => setCurrentItem({...currentItem, glassColor: e.target.value})}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Width (inches) *</label>
+                      <input
+                        type="number"
+                        placeholder="Width"
+                        value={currentItem.width}
+                        onChange={(e) => setCurrentItem({...currentItem, width: e.target.value})}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Height (inches) *</label>
+                      <input
+                        type="number"
+                        placeholder="Height"
+                        value={currentItem.height}
+                        onChange={(e) => setCurrentItem({...currentItem, height: e.target.value})}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Rate/Sq Ft (₹) *</label>
+                      <input
+                        type="number"
+                        placeholder="Rate"
+                        value={currentItem.ratePerSqFt}
+                        onChange={(e) => setCurrentItem({...currentItem, ratePerSqFt: e.target.value})}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={currentItem.quantity}
+                        onChange={(e) => setCurrentItem({...currentItem, quantity: parseInt(e.target.value) || 1})}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div className="flex items-end">
+                      <button
+                        onClick={addItem}
+                        className="w-full bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                      >
+                        <Plus size={20} />
+                        Add Item
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="Additional notes for this item"
+                      value={currentItem.notes}
+                      onChange={(e) => setCurrentItem({...currentItem, notes: e.target.value})}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {formData.items.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-lg mb-4 text-gray-800">Quotation Items</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="p-3 text-left text-sm font-semibold">Category</th>
+                            <th className="p-3 text-left text-sm font-semibold">Profile</th>
+                            <th className="p-3 text-left text-sm font-semibold">Type</th>
+                            <th className="p-3 text-left text-sm font-semibold">Glass</th>
+                            <th className="p-3 text-left text-sm font-semibold">Size</th>
+                            <th className="p-3 text-left text-sm font-semibold">Area</th>
+                            <th className="p-3 text-left text-sm font-semibold">Rate/Sq Ft</th>
+                            <th className="p-3 text-left text-sm font-semibold">Qty</th>
+                            <th className="p-3 text-right text-sm font-semibold">Total</th>
+                            <th className="p-3"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {formData.items.map((item) => (
+                            <tr key={item.id} className="border-b hover:bg-gray-50">
+                              <td className="p-3">{item.itemCategory}</td>
+                              <td className="p-3">{item.profile}</td>
+                              <td className="p-3 text-sm">
+                                {item.itemCategory === 'Window' ? item.windowType : item.doorType}
+                              </td>
+                              <td className="p-3 text-sm">
+                                <div>{item.glassType}</div>
+                                <div className="text-xs text-gray-500">
+                                  {item.glassThickness} | {item.glassAppearance}
                                 </div>
-                            </div>
+                              </td>
+                              <td className="p-3">{item.width}″ × {item.height}″</td>
+                              <td className="p-3">{item.area} sq ft</td>
+                              <td className="p-3">₹{item.ratePerSqFt}</td>
+                              <td className="p-3">{item.quantity}</td>
+                              <td className="p-3 text-right font-semibold">₹{item.totalPrice}</td>
+                              <td className="p-3">
+                                <button
+                                  onClick={() => removeItem(item.id)}
+                                  className="text-red-600 hover:text-red-800"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-4 bg-gray-50 p-4 rounded-lg">
+                      <div className="flex justify-end space-y-2 flex-col items-end">
+                        <div className="flex justify-between w-64">
+                          <span className="font-medium">Subtotal:</span>
+                          <span className="font-semibold">₹{calculateTotal().toFixed(2)}</span>
                         </div>
+                        <div className="flex justify-between w-64">
+                          <span className="font-medium">GST (18%):</span>
+                          <span className="font-semibold">₹{(calculateTotal() * 0.18).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between w-64 text-lg border-t pt-2">
+                          <span className="font-bold">Grand Total:</span>
+                          <span className="font-bold text-indigo-600">₹{(calculateTotal() * 1.18).toFixed(2)}</span>
+                        </div>
+                      </div>
                     </div>
-                );
-            }
-        };
+                  </div>
+                )}
 
-        ReactDOM.render(<SunshineUPVCSystem />, document.getElementById('root'));
-    </script>
+                <div className="flex gap-4 justify-end">
+                  <button
+                    onClick={() => setView('list')}
+                    className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveQuotation}
+                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+                  >
+                    <FileText size={20} />
+                    Save Quotation
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // VIEW QUOTATION
+      if (view === 'view' && currentQuotation) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-white rounded-lg shadow-lg p-8">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h1 className="text-3xl font-bold text-indigo-900">Sunshine UPVC Windows</h1>
+                    <p className="text-gray-600">Professional Window Solutions</p>
+                  </div>
+                  <button
+                    onClick={() => setView('list')}
+                    className="text-gray-600 hover:text-gray-800"
+                  >
+                    ← Back to List
+                  </button>
+                </div>
+
+                <div className="border-t border-b border-gray-200 py-4 mb-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Quotation Number</p>
+                      <p className="font-semibold text-lg">{currentQuotation.quotationNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Date</p>
+                      <p className="font-semibold">{new Date(currentQuotation.date).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <h3 className="font-semibold text-lg mb-2">Client Details</h3>
+                  <p className="text-gray-800"><strong>Name:</strong> {currentQuotation.clientName}</p>
+                  {currentQuotation.clientPhone && <p className="text-gray-800"><strong>Phone:</strong> {currentQuotation.clientPhone}</p>}
+                  {currentQuotation.clientAddress && <p className="text-gray-800"><strong>Address:</strong> {currentQuotation.clientAddress}</p>}
+                  {currentQuotation.projectName && <p className="text-gray-800"><strong>Project:</strong> {currentQuotation.projectName}</p>}
+                </div>
+
+                <div className="mb-6">
+                  <h3 className="font-semibold text-lg mb-4">Items</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse border border-gray-300">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border border-gray-300 p-2 text-left text-sm">Category</th>
+                          <th className="border border-gray-300 p-2 text-left text-sm">Profile</th>
+                          <th className="border border-gray-300 p-2 text-left text-sm">Type</th>
+                          <th className="border border-gray-300 p-2 text-left text-sm">Glass Details</th>
+                          <th className="border border-gray-300 p-2 text-left text-sm">Finish</th>
+                          <th className="border border-gray-300 p-2 text-left text-sm">Size</th>
+                          <th className="border border-gray-300 p-2 text-left text-sm">Area</th>
+                          <th className="border border-gray-300 p-2 text-left text-sm">Rate/Sq Ft</th>
+                          <th className="border border-gray-300 p-2 text-left text-sm">Qty</th>
+                          <th className="border border-gray-300 p-2 text-right text-sm">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {currentQuotation.items.map((item, idx) => (
+                          <tr key={idx}>
+                            <td className="border border-gray-300 p-2">{item.itemCategory}</td>
+                            <td className="border border-gray-300 p-2">{item.profile}</td>
+                            <td className="border border-gray-300 p-2">
+                              {item.itemCategory === 'Window' ? item.windowType : item.doorType}
+                            </td>
+                            <td className="border border-gray-300 p-2 text-sm">
+                              <div>{item.glassType}</div>
+                              <div className="text-xs text-gray-600">{item.glassThickness} | {item.glassAppearance}</div>
+                              {item.glassColor && <div className="text-xs text-gray-600">Color: {item.glassColor}</div>}
+                            </td>
+                            <td className="border border-gray-300 p-2 text-sm">
+                              <div>{item.profileFinish}</div>
+                              {item.windowColor && <div className="text-xs text-gray-600">{item.windowColor}</div>}
+                            </td>
+                            <td className="border border-gray-300 p-2">{item.width}″×{item.height}″</td>
+                            <td className="border border-gray-300 p-2">{item.area} sq ft</td>
+                            <td className="border border-gray-300 p-2">₹{item.ratePerSqFt}</td>
+                            <td className="border border-gray-300 p-2">{item.quantity}</td>
+                            <td className="border border-gray-300 p-2 text-right">₹{item.totalPrice}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="flex justify-end space-y-2 flex-col items-end">
+                    <div className="flex justify-between w-64">
+                      <span className="font-medium">Subtotal:</span>
+                      <span className="font-semibold">₹{currentQuotation.total}</span>
+                    </div>
+                    <div className="flex justify-between w-64">
+                      <span className="font-medium">GST (18%):</span>
+                      <span className="font-semibold">₹{currentQuotation.gst}</span>
+                    </div>
+                    <div className="flex justify-between w-64 text-xl border-t-2 pt-2">
+                      <span className="font-bold">Grand Total:</span>
+                      <span className="font-bold text-indigo-600">₹{currentQuotation.grandTotal}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex gap-4 justify-end">
+                  <button
+                    onClick={() => window.print()}
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
+                  >
+                    <Download size={20} />
+                    Print / Save PDF
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    };
+
+    ReactDOM.render(<SunshineUPVCSystem />, document.getElementById('root'));
+  </script>
 </body>
 </html>
